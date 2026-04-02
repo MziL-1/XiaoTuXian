@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>像素待办清单</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-green: #39FF14;
+            --dark-black: #0a0a0a;
+            --bright-yellow: #FFE600;
+            --pixel-white: #f0f0f0;
+            --pixel-red: #FF4444;
+            --pixel-blue: #4444FF;
+            --pixel-purple: #FF44FF;
+            --pixel-cyan: #44FFFF;
+            --pixel-orange: #FF8844;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'VT323', monospace;
+            background: var(--dark-black);
+            color: var(--pixel-white);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* CRT Scanline Effect */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.15),
+                rgba(0, 0, 0, 0.15) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* CRT Flicker */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(57, 255, 20, 0.02);
+            pointer-events: none;
+            z-index: 9998;
+            animation: flicker 0.15s infinite;
+        }
+
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.98; }
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: 20px;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: #111;
+            border: 4px solid var(--neon-green);
+            padding: 15px;
+            image-rendering: pixelated;
+        }
+
+        .sidebar h2 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 10px;
+            color: var(--bright-yellow);
+            margin-bottom: 15px;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        .category-list {
+            list-style: none;
+        }
+
+        .category-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.1s;
+        }
+
+        .category-item:hover, .category-item.active {
+            border-color: var(--neon-green);
+            background: rgba(57, 255, 20, 0.1);
+        }
+
+        .category-color {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            border: 2px solid #fff;
+        }
+
+        .category-name {
+            flex: 1;
+            font-size: 18px;
+        }
+
+        .category-delete {
+            color: var(--pixel-red);
+            cursor: pointer;
+            font-size: 16px;
+            display: none;
+        }
+
+        .category-item:hover .category-delete {
+            display: block;
+        }
+
+        .add-category-btn {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 8px;
+            background: var(--bright-yellow);
+            color: #000;
+            border: 4px solid #fff;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+
+        .add-category-btn:hover {
+            background: #fff;
+            border-color: var(--bright-yellow);
+        }
+
+        /* Main Content */
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Stats Panel */
+        .stats-panel {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .stat-box {
+            background: #111;
+            border: 4px solid var(--neon-green);
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 24px;
+            color: var(--neon-green);
+            text-shadow: 0 0 10px var(--neon-green);
+        }
+
+        .stat-label {
+            font-size: 16px;
+            color: var(--pixel-white);
+            margin-top: 5px;
+        }
+
+        /* Search & Filter */
+        .search-filter {
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 12px;
+            font-family: 'VT323', monospace;
+            font-size: 20px;
+            background: #111;
+            border: 4px solid var(--neon-green);
+            color: var(--pixel-white);
+            outline: none;
+        }
+
+        .search-input:focus {
+            box-shadow: 0 0 15px var(--neon-green);
+        }
+
+        .filter-select {
+            padding: 12px;
+            font-family: 'VT323', monospace;
+            font-size: 20px;
+            background: #111;
+            border: 4px solid var(--bright-yellow);
+            color: var(--pixel-white);
+            cursor: pointer;
+        }
+
+        /* Todo List */
+        .todo-list {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .todo-item {
+            background: #111;
+            border: 4px solid var(--neon-green);
+            padding: 15px;
+            display: grid;
+            grid-template-columns: 30px 1fr auto;
+            gap: 15px;
+            align-items: center;
+            cursor: grab;
+            transition: all 0.1s;
+            position: relative;
+        }
+
+        .todo-item:hover {
+            border-color: var(--bright-yellow);
+        }
+
+        .todo-item.dragging {
+            opacity: 0.5;
+            border-color: var(--bright-yellow);
+        }
+
+        .todo-item.completed {
+            opacity: 0.5;
+            border-color: #666;
+        }
+
+        .todo-item.completed .todo-title {
+            text-decoration: line-through;
+        }
+
+        .todo-item.expired {
+            border-color: var(--pixel-red);
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { border-color: var(--pixel-red); }
+            50% { border-color: transparent; }
+        }
+
+        .todo-checkbox {
+            width: 24px;
+            height: 24px;
+            border: 4px solid var(--neon-green);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.1s;
+        }
+
+        .todo-checkbox.checked {
+            background: var(--neon-green);
+            color: #000;
+        }
+
+        .todo-content {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .todo-title {
+            font-size: 22px;
+        }
+
+        .todo-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 16px;
+            color: #888;
+        }
+
+        .todo-priority {
+            color: var(--pixel-red);
+            font-weight: bold;
+        }
+
+        .todo-category {
+            padding: 2px 8px;
+            font-size: 14px;
+        }
+
+        .todo-due {
+            color: var(--pixel-white);
+        }
+
+        .todo-due.expired {
+            color: var(--pixel-red);
+            animation: blink 1s infinite;
+        }
+
+        .todo-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .todo-action-btn {
+            padding: 8px 12px;
+            font-family: 'VT323', monospace;
+            font-size: 18px;
+            background: #222;
+            border: 2px solid #666;
+            color: var(--pixel-white);
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+
+        .todo-action-btn:hover {
+            background: var(--neon-green);
+            color: #000;
+            border-color: #fff;
+        }
+
+        .todo-action-btn.delete:hover {
+            background: var(--pixel-red);
+        }
+
+        /* Batch Actions */
+        .batch-actions {
+            display: none;
+            gap: 10px;
+            padding: 10px;
+            background: #111;
+            border: 4px solid var(--bright-yellow);
+        }
+
+        .batch-actions.visible {
+            display: flex;
+        }
+
+        .batch-btn {
+            padding: 10px 15px;
+            font-family: 'VT323', monospace;
+            font-size: 18px;
+            background: #222;
+            border: 2px solid #666;
+            color: var(--pixel-white);
+            cursor: pointer;
+        }
+
+        .batch-btn:hover {
+            background: var(--bright-yellow);
+            color: #000;
+        }
+
+        /* Big Plus Button */
+        .big-plus-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 80px;
+            height: 80px;
+            background: var(--neon-green);
+            border: 6px solid #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            color: #000;
+            font-family: 'Press Start 2P', cursive;
+            box-shadow: 0 0 20px var(--neon-green), 4px 4px 0 #000;
+            animation: pulse 2s infinite;
+            z-index: 100;
+        }
+
+        .big-plus-btn:hover {
+            background: #fff;
+            box-shadow: 0 0 30px var(--neon-green), 4px 4px 0 #000;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.visible {
+            display: flex;
+        }
+
+        /* Half Screen Modal */
+        .modal {
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            background: #111;
+            border: 6px solid var(--neon-green);
+            padding: 25px;
+            overflow-y: auto;
+            box-shadow: 0 0 30px var(--neon-green);
+        }
+
+        .modal h2 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 14px;
+            color: var(--bright-yellow);
+            margin-bottom: 20px;
+            text-align: center;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 20px;
+            margin-bottom: 8px;
+            color: var(--neon-green);
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            font-family: 'VT323', monospace;
+            font-size: 20px;
+            background: #222;
+            border: 4px solid #444;
+            color: var(--pixel-white);
+            outline: none;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            border-color: var(--neon-green);
+            box-shadow: 0 0 10px var(--neon-green);
+        }
+
+        .form-group input[type="datetime-local"] {
+            color-scheme: dark;
+        }
+
+        .priority-options {
+            display: flex;
+            gap: 15px;
+        }
+
+        .priority-option {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            border: 4px solid #444;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+
+        .priority-option.selected {
+            border-color: var(--neon-green);
+            background: rgba(57, 255, 20, 0.2);
+        }
+
+        .priority-option.important.selected {
+            border-color: var(--pixel-red);
+            background: rgba(255, 68, 68, 0.2);
+        }
+
+        .category-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .category-option {
+            padding: 8px 15px;
+            border: 4px solid #444;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+
+        .category-option.selected {
+            border-color: #fff;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        .form-btn {
+            flex: 1;
+            padding: 15px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 10px;
+            border: 4px solid #fff;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+
+        .form-btn.submit {
+            background: var(--neon-green);
+            color: #000;
+        }
+
+        .form-btn.submit:hover {
+            box-shadow: 0 0 15px var(--neon-green);
+        }
+
+        .form-btn.cancel {
+            background: #444;
+            color: var(--pixel-white);
+        }
+
+        .form-btn.cancel:hover {
+            background: var(--pixel-red);
+        }
+
+        /* New Category Input */
+        .new-category-input {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .new-category-input.visible {
+            display: flex;
+            gap: 10px;
+        }
+
+        .new-category-input input {
+            flex: 1;
+            padding: 8px;
+            font-family: 'VT323', monospace;
+            font-size: 18px;
+            background: #222;
+            border: 4px solid var(--neon-green);
+            color: var(--pixel-white);
+        }
+
+        .new-category-input button {
+            padding: 8px 15px;
+            font-family: 'VT323', monospace;
+            font-size: 18px;
+            background: var(--neon-green);
+            border: 2px solid #fff;
+            color: #000;
+            cursor: pointer;
+        }
+
+        /* Color Picker for Category */
+        .color-picker {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .color-option {
+            width: 30px;
+            height: 30px;
+            border: 3px solid #444;
+            cursor: pointer;
+        }
+
+        .color-option.selected {
+            border-color: #fff;
+            transform: scale(1.1);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+
+        .empty-state span {
+            font-size: 48px;
+            display: block;
+            margin-bottom: 15px;
+        }
+
+        .empty-state p {
+            font-size: 22px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                order: -1;
+            }
+
+            .stats-panel {
+                grid-template-columns: 1fr;
+            }
+
+            .big-plus-btn {
+                bottom: 20px;
+                right: 20px;
+                width: 60px;
+                height: 60px;
+                font-size: 36px;
+            }
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 12px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #111;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--neon-green);
+            border: 2px solid #111;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar - Category Manager -->
+        <div class="sidebar">
+            <h2>分类管理</h2>
+            <ul class="category-list" id="categoryList"></ul>
+            <button class="add-category-btn" id="addCategoryBtn">+ 新建分类</button>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Stats Panel -->
+            <div class="stats-panel">
+                <div class="stat-box">
+                    <div class="stat-number" id="todayCount">0</div>
+                    <div class="stat-label">今日待办</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number" id="completedCount">0</div>
+                    <div class="stat-label">已完成</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number" id="expiredCount">0</div>
+                    <div class="stat-label">已超时</div>
+                </div>
+            </div>
+
+            <!-- Search & Filter -->
+            <div class="search-filter">
+                <input type="text" class="search-input" id="searchInput" placeholder="搜索待办...">
+                <select class="filter-select" id="statusFilter">
+                    <option value="all">全部</option>
+                    <option value="pending">进行中</option>
+                    <option value="completed">已完成</option>
+                </select>
+            </div>
+
+            <!-- Batch Actions -->
+            <div class="batch-actions" id="batchActions">
+                <button class="batch-btn" id="batchComplete">批量完成</button>
+                <button class="batch-btn" id="batchDelete">批量删除</button>
+                <button class="batch-btn" id="cancelBatch">取消选择</button>
+            </div>
+
+            <!-- Todo List -->
+            <div class="todo-list" id="todoList"></div>
+        </div>
+    </div>
+
+    <!-- Big Plus Button -->
+    <button class="big-plus-btn" id="bigPlusBtn">+</button>
+
+    <!-- Add/Edit Todo Modal -->
+    <div class="modal-overlay" id="todoModal">
+        <div class="modal">
+            <h2 id="modalTitle">添加待办</h2>
+            <form id="todoForm">
+                <input type="hidden" id="todoId">
+                <div class="form-group">
+                    <label>标题</label>
+                    <input type="text" id="todoTitle" placeholder="输入待办标题..." required>
+                </div>
+                <div class="form-group">
+                    <label>分类</label>
+                    <div class="category-options" id="categoryOptions"></div>
+                    <div class="new-category-input" id="newCategoryInput">
+                        <input type="text" id="newCategoryName" placeholder="新分类名称">
+                        <div class="color-picker" id="colorPicker">
+                            <div class="color-option" style="background: #39FF14;" data-color="#39FF14"></div>
+                            <div class="color-option" style="background: #FFE600;" data-color="#FFE600"></div>
+                            <div class="color-option" style="background: #FF4444;" data-color="#FF4444"></div>
+                            <div class="color-option" style="background: #4444FF;" data-color="#4444FF"></div>
+                            <div class="color-option" style="background: #FF44FF;" data-color="#FF44FF"></div>
+                            <div class="color-option" style="background: #44FFFF;" data-color="#44FFFF"></div>
+                            <div class="color-option" style="background: #FF8844;" data-color="#FF8844"></div>
+                        </div>
+                        <button type="button" id="confirmNewCategory">确认</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>优先级</label>
+                    <div class="priority-options">
+                        <div class="priority-option" data-priority="normal">普通</div>
+                        <div class="priority-option important" data-priority="important">重要</div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>截止时间</label>
+                    <input type="datetime-local" id="todoDueDate">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="form-btn cancel" id="cancelBtn">取消</button>
+                    <button type="submit" class="form-btn submit" id="submitBtn">确认</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let todos = JSON.parse(localStorage.getItem('todos')) || [];
+        let categories = JSON.parse(localStorage.getItem('categories')) || [
+            { id: 1, name: '工作', color: '#39FF14' },
+            { id: 2, name: '学习', color: '#4444FF' },
+            { id: 3, name: '生活', color: '#FFE600' },
+            { id: 4, name: '其它', color: '#FF44FF' }
+        ];
+        let activeCategory = 'all';
+        let selectedPriority = 'normal';
+        let selectedCategory = null;
+        let selectedColor = '#39FF14';
+        let batchMode = false;
+        let selectedTodos = new Set();
+        let draggedItem = null;
+
+        // DOM Elements
+        const categoryList = document.getElementById('categoryList');
+        const todoList = document.getElementById('todoList');
+        const todoModal = document.getElementById('todoModal');
+        const todoForm = document.getElementById('todoForm');
+        const searchInput = document.getElementById('searchInput');
+        const statusFilter = document.getElementById('statusFilter');
+        const batchActions = document.getElementById('batchActions');
+        const addCategoryBtn = document.getElementById('addCategoryBtn');
+        const newCategoryInput = document.getElementById('newCategoryInput');
+
+        // Initialize
+        function init() {
+            renderCategories();
+            renderTodos();
+            updateStats();
+            setupEventListeners();
+        }
+
+        // Save to localStorage
+        function saveData() {
+            localStorage.setItem('todos', JSON.stringify(todos));
+            localStorage.setItem('categories', JSON.stringify(categories));
+        }
+
+        // Render Categories
+        function renderCategories() {
+            categoryList.innerHTML = `
+                <li class="category-item ${activeCategory === 'all' ? 'active' : ''}" data-category="all">
+                    <div class="category-color" style="background: #fff;"></div>
+                    <span class="category-name">全部</span>
+                </li>
+            `;
+            categories.forEach(cat => {
+                const item = document.createElement('li');
+                item.className = `category-item ${activeCategory === cat.id ? 'active' : ''}`;
+                item.dataset.category = cat.id;
+                item.innerHTML = `
+                    <div class="category-color" style="background: ${cat.color};"></div>
+                    <span class="category-name">${cat.name}</span>
+                    <span class="category-delete" data-id="${cat.id}">×</span>
+                `;
+                categoryList.appendChild(item);
+            });
+        }
+
+        // Render Todos
+        function renderTodos() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const status = statusFilter.value;
+
+            let filtered = todos.filter(todo => {
+                const matchCategory = activeCategory === 'all' || todo.categoryId == activeCategory;
+                const matchSearch = todo.title.toLowerCase().includes(searchTerm);
+                const matchStatus = status === 'all' || 
+                    (status === 'pending' && !todo.completed) ||
+                    (status === 'completed' && todo.completed);
+                return matchCategory && matchSearch && matchStatus;
+            });
+
+            // Sort by order
+            filtered.sort((a, b) => a.order - b.order);
+
+            if (filtered.length === 0) {
+                todoList.innerHTML = `
+                    <div class="empty-state">
+                        <span>📋</span>
+                        <p>暂无待办事项</p>
+                    </div>
+                `;
+                return;
+            }
+
+            todoList.innerHTML = '';
+            filtered.forEach(todo => {
+                const category = categories.find(c => c.id == todo.categoryId);
+                const isExpired = todo.dueDate && new Date(todo.dueDate) < new Date() && !todo.completed;
+                const item = document.createElement('div');
+                item.className = `todo-item ${todo.completed ? 'completed' : ''} ${isExpired ? 'expired' : ''}`;
+                item.draggable = true;
+                item.dataset.id = todo.id;
+
+                const dueDateStr = todo.dueDate ? formatDate(todo.dueDate) : '';
+
+                item.innerHTML = `
+                    <div class="todo-checkbox ${todo.completed ? 'checked' : ''}" data-id="${todo.id}">
+                        ${todo.completed ? '✓' : ''}
+                    </div>
+                    <div class="todo-content">
+                        <div class="todo-title">${todo.title}</div>
+                        <div class="todo-meta">
+                            ${category ? `<span class="todo-category" style="background: ${category.color}; color: #000;">${category.name}</span>` : ''}
+                            ${todo.priority === 'important' ? '<span class="todo-priority">⚠ 重要</span>' : ''}
+                            ${dueDateStr ? `<span class="todo-due ${isExpired ? 'expired' : ''}">📅 ${dueDateStr}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="todo-actions">
+                        <button class="todo-action-btn edit" data-id="${todo.id}">✎</button>
+                        <button class="todo-action-btn delete" data-id="${todo.id}">🗑</button>
+                    </div>
+                `;
+
+                // Checkbox click
+                item.querySelector('.todo-checkbox').addEventListener('click', (e) => {
+                    if (batchMode) {
+                        toggleTodoSelection(todo.id);
+                    } else {
+                        toggleTodoComplete(todo.id);
+                    }
+                });
+
+                // Edit click
+                item.querySelector('.edit').addEventListener('click', () => editTodo(todo.id));
+
+                // Delete click
+                item.querySelector('.delete').addEventListener('click', () => deleteTodo(todo.id));
+
+                // Drag events
+                item.addEventListener('dragstart', handleDragStart);
+                item.addEventListener('dragend', handleDragEnd);
+                item.addEventListener('dragover', handleDragOver);
+                item.addEventListener('drop', handleDrop);
+
+                todoList.appendChild(item);
+            });
+        }
+
+        // Format Date
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const isToday = date.toDateString() === now.toDateString();
+            
+            const time = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            
+            if (isToday) {
+                return `今天 ${time}`;
+            }
+            
+            return `${date.getMonth() + 1}/${date.getDate()} ${time}`;
+        }
+
+        // Update Stats
+        function updateStats() {
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            
+            const todayTodos = todos.filter(t => {
+                if (!t.dueDate) return false;
+                const due = new Date(t.dueDate);
+                return due >= today && due < new Date(today.getTime() + 86400000) && !t.completed;
+            }).length;
+
+            const completedTodos = todos.filter(t => t.completed).length;
+
+            const expiredTodos = todos.filter(t => {
+                if (!t.dueDate || t.completed) return false;
+                return new Date(t.dueDate) < now;
+            }).length;
+
+            document.getElementById('todayCount').textContent = todayTodos;
+            document.getElementById('completedCount').textContent = completedTodos;
+            document.getElementById('expiredCount').textContent = expiredTodos;
+        }
+
+        // Todo Operations
+        function addTodo(todo) {
+            todo.id = Date.now();
+            todo.order = todos.length;
+            todos.push(todo);
+            saveData();
+            renderTodos();
+            updateStats();
+        }
+
+        function editTodo(id) {
+            const todo = todos.find(t => t.id === id);
+            if (!todo) return;
+
+            document.getElementById('modalTitle').textContent = '编辑待办';
+            document.getElementById('todoId').value = todo.id;
+            document.getElementById('todoTitle').value = todo.title;
+            document.getElementById('todoDueDate').value = todo.dueDate || '';
+            
+            selectedPriority = todo.priority;
+            document.querySelectorAll('.priority-option').forEach(opt => {
+                opt.classList.toggle('selected', opt.dataset.priority === todo.priority);
+            });
+
+            selectedCategory = todo.categoryId;
+            document.querySelectorAll('.category-option').forEach(opt => {
+                opt.classList.toggle('selected', opt.dataset.category == todo.categoryId);
+            });
+
+            todoModal.classList.add('visible');
+        }
+
+        function updateTodo(id, updates) {
+            const index = todos.findIndex(t => t.id === id);
+            if (index !== -1) {
+                todos[index] = { ...todos[index], ...updates };
+                saveData();
+                renderTodos();
+                updateStats();
+            }
+        }
+
+        function deleteTodo(id) {
+            todos = todos.filter(t => t.id !== id);
+            saveData();
+            renderTodos();
+            updateStats();
+        }
+
+        function toggleTodoComplete(id) {
+            const todo = todos.find(t => t.id === id);
+            if (todo) {
+                todo.completed = !todo.completed;
+                saveData();
+                renderTodos();
+                updateStats();
+            }
+        }
+
+        // Batch Operations
+        function toggleBatchMode() {
+            batchMode = !batchMode;
+            batchActions.classList.toggle('visible', batchMode);
+            selectedTodos.clear();
+            document.querySelectorAll('.todo-checkbox').forEach(cb => {
+                cb.style.opacity = batchMode ? '0.5' : '1';
+            });
+        }
+
+        function toggleTodoSelection(id) {
+            if (selectedTodos.has(id)) {
+                selectedTodos.delete(id);
+            } else {
+                selectedTodos.add(id);
+            }
+            
+            const cb = document.querySelector(`.todo-checkbox[data-id="${id}"]`);
+            if (cb) {
+                cb.style.background = selectedTodos.has(id) ? 'var(--bright-yellow)' : '';
+            }
+        }
+
+        function batchComplete() {
+            selectedTodos.forEach(id => {
+                const todo = todos.find(t => t.id === id);
+                if (todo) todo.completed = true;
+            });
+            saveData();
+            toggleBatchMode();
+            renderTodos();
+            updateStats();
+        }
+
+        function batchDelete() {
+            todos = todos.filter(t => !selectedTodos.has(t.id));
+            saveData();
+            toggleBatchMode();
+            renderTodos();
+            updateStats();
+        }
+
+        // Category Operations
+        function addCategory(name, color) {
+            const newCat = {
+                id: Date.now(),
+                name,
+                color
+            };
+            categories.push(newCat);
+            saveData();
+            renderCategories();
+        }
+
+        function deleteCategory(id) {
+            categories = categories.filter(c => c.id !== id);
+            todos = todos.filter(t => t.categoryId != id);
+            saveData();
+            renderCategories();
+            renderTodos();
+            updateStats();
+        }
+
+        // Drag & Drop
+        function handleDragStart(e) {
+            draggedItem = e.target;
+            e.target.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+            draggedItem = null;
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            if (!draggedItem) return;
+
+            const targetId = parseInt(e.target.closest('.todo-item')?.dataset.id);
+            if (!targetId || targetId === parseInt(draggedItem.dataset.id)) return;
+
+            const draggedId = parseInt(draggedItem.dataset.id);
+            const draggedIndex = todos.findIndex(t => t.id === draggedId);
+            const targetIndex = todos.findIndex(t => t.id === targetId);
+
+            const [removed] = todos.splice(draggedIndex, 1);
+            todos.splice(targetIndex, 0, removed);
+
+            // Update order
+            todos.forEach((t, i) => t.order = i);
+            
+            saveData();
+            renderTodos();
+        }
+
+        // Event Listeners
+        function setupEventListeners() {
+            // Big Plus Button
+            document.getElementById('bigPlusBtn').addEventListener('click', () => {
+                document.getElementById('modalTitle').textContent = '添加待办';
+                document.getElementById('todoId').value = '';
+                document.getElementById('todoTitle').value = '';
+                document.getElementById('todoDueDate').value = '';
+                selectedPriority = 'normal';
+                selectedCategory = categories[0]?.id || null;
+                
+                document.querySelectorAll('.priority-option').forEach(opt => {
+                    opt.classList.toggle('selected', opt.dataset.priority === 'normal');
+                });
+                
+                todoModal.classList.add('visible');
+                renderCategoryOptions();
+            });
+
+            // Modal Close
+            document.getElementById('cancelBtn').addEventListener('click', () => {
+                todoModal.classList.remove('visible');
+            });
+
+            todoModal.addEventListener('click', (e) => {
+                if (e.target === todoModal) {
+                    todoModal.classList.remove('visible');
+                }
+            });
+
+            // Form Submit
+            todoForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                
+                const todoId = document.getElementById('todoId').value;
+                const title = document.getElementById('todoTitle').value;
+                const dueDate = document.getElementById('todoDueDate').value;
+
+                if (!title.trim()) return;
+
+                const todoData = {
+                    title: title.trim(),
+                    categoryId: selectedCategory || categories[0]?.id,
+                    priority: selectedPriority,
+                    dueDate: dueDate || null,
+                    completed: false
+                };
+
+                if (todoId) {
+                    updateTodo(parseInt(todoId), todoData);
+                } else {
+                    addTodo(todoData);
+                }
+
+                todoModal.classList.remove('visible');
+            });
+
+            // Priority Selection
+            document.querySelectorAll('.priority-option').forEach(opt => {
+                opt.addEventListener('click', () => {
+                    selectedPriority = opt.dataset.priority;
+                    document.querySelectorAll('.priority-option').forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                });
+            });
+
+            // Category Click
+            document.addEventListener('click', (e) => {
+                if (e.target.closest('.category-item') && !e.target.closest('.category-delete')) {
+                    const cat = e.target.closest('.category-item').dataset.category;
+                    activeCategory = cat;
+                    renderCategories();
+                    renderTodos();
+                }
+
+                if (e.target.closest('.category-delete')) {
+                    const id = parseInt(e.target.closest('.category-delete').dataset.id);
+                    if (confirm('删除此分类？')) {
+                        deleteCategory(id);
+                    }
+                }
+            });
+
+            // Search & Filter
+            searchInput.addEventListener('input', renderTodos);
+            statusFilter.addEventListener('change', renderTodos);
+
+            // Add Category Button
+            addCategoryBtn.addEventListener('click', () => {
+                newCategoryInput.classList.toggle('visible');
+            });
+
+            // Color Selection
+            document.querySelectorAll('.color-option').forEach(opt => {
+                opt.addEventListener('click', () => {
+                    document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                    selectedColor = opt.dataset.color;
+                });
+            });
+
+            // Confirm New Category
+            document.getElementById('confirmNewCategory').addEventListener('click', () => {
+                const name = document.getElementById('newCategoryName').value.trim();
+                if (name) {
+                    addCategory(name, selectedColor);
+                    document.getElementById('newCategoryName').value = '';
+                    newCategoryInput.classList.remove('visible');
+                }
+            });
+
+            // Batch Actions
+            document.getElementById('batchComplete').addEventListener('click', batchComplete);
+            document.getElementById('batchDelete').addEventListener('click', batchDelete);
+            document.getElementById('cancelBatch').addEventListener('click', toggleBatchMode);
+
+            // Long press to enter batch mode
+            let pressTimer;
+            todoList.addEventListener('mousedown', (e) => {
+                if (e.target.classList.contains('todo-checkbox')) return;
+                pressTimer = setTimeout(() => {
+                    toggleBatchMode();
+                }, 500);
+            });
+            todoList.addEventListener('mouseup', () => clearTimeout(pressTimer));
+        }
+
+        // Render Category Options in Modal
+        function renderCategoryOptions() {
+            const container = document.getElementById('categoryOptions');
+            container.innerHTML = categories.map(cat => `
+                <div class="category-option ${selectedCategory == cat.id ? 'selected' : ''}" 
+                     data-category="${cat.id}" 
+                     style="border-color: ${cat.color}; background: ${selectedCategory == cat.id ? cat.color + '40' : 'transparent'};">
+                    <span style="color: ${cat.color};">■</span> ${cat.name}
+                </div>
+            `).join('');
+
+            container.querySelectorAll('.category-option').forEach(opt => {
+                opt.addEventListener('click', () => {
+                    selectedCategory = parseInt(opt.dataset.category);
+                    renderCategoryOptions();
+                });
+            });
+        }
+
+        // Initial render
+        renderCategoryOptions();
+        init();
+    </script>
+</body>
+</html>
